@@ -178,3 +178,11 @@ class ResetPasswordSerializer(serializers.Serializer):
             return attrs
         
         raise serializers.ValidationError({"error": "OTP not verified !"})
+    
+
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.UserProfile
+        fields = '__all__'

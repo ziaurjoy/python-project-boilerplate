@@ -2,7 +2,7 @@ import requests
 from django.db.models import Q
 from django.db import transaction, IntegrityError
 
-from rest_framework import status, views
+from rest_framework import status, views, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -109,9 +109,52 @@ class LoginView(views.APIView):
 
 
 
+class ProfileUpdateApiView(generics.UpdateAPIView, generics.RetrieveAPIView):
+    
+    permission_classes = (IsAuthenticated,)
+    serializer_class = serializers.UserProfileSerializer
 
-class ChangePasswordView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    def get_object(self):
+        profile = models.UserProfile.objects.get(user=self.request.user)
+        self.check_object_permissions(self.request, profile)
+        return profile
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response({'message': 'Profile Update Successfuly Done'}, status=status.HTTP_201_CREATED)
+
+
+
+class ChangePasswordView(generics.UpdateAPIView, generics.RetrieveAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = serializers.ChangePasswordSerializer
+
+    def get_object(self):
+        user = models.User.objects.get(id=self.request.user.id)
+        self.check_object_permissions(self.request, user)
+        return user
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            instance.set_password(request.data['password'])
+            instance.save()
+            return Response({'message': 'Password Update Successfuly Done'}, status=status.HTTP_201_CREATED)
+
+        return Response(utils.error_message(serializer), status=status.HTTP_400_BAD_REQUEST)
+
 
     def post(self, request):
         serializer = serializers.ChangePasswordSerializer(data=request.data, context={'request': request})
